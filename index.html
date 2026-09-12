@@ -1,62 +1,59 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <style>
-            *{margin: 0; padding: 0; overflow: hidden;}
-            video{width: 100vw; height: 100vh; object-fit: cover;}
-        </style>
-    </head>
-    <body>
-        <video src="My_load_Wallpaper.mp4" autoplay loop muted playsinline preload="auto"></video>
-        
-        <script>
-        const video = document.getElementById('wallpaperVideo');
-        const videoSrc = 'my.mp4';
+<head>
+    <meta charset="UTF-8">
+    <title>Live Wallpaper</title>
+    <style>
+        * { margin: 0; padding: 0; overflow: hidden; background: #000; }
+        video { width: 100vw; height: 100vh; object-fit: cover; }
+    </style>
+</head>
+<body>
+    <!-- 
+      The native Mac browser engine REQUIRES 'muted', 'playsinline', and 'loop' 
+      arranged natively before it grants automated execution permissions.
+    -->
+    <video id="wallpaperVideo" src="my.mp4" loop muted playsinline preload="auto"></video>
 
-        // 1. FORCED AUTOPLAY SYSTEM (Solves the click-to-play issue)
-        function forcePlay() {
+    <script>
+        const video = document.getElementById('wallpaperVideo');
+
+        function triggerAutoplay() {
+            // Step 1: Force state reset to absolute zero to satisfy Mac security policies
+            video.muted = true;
+            video.currentTime = 0;
+
+            // Step 2: Fire the play execution
             const playPromise = video.play();
+
             if (playPromise !== undefined) {
                 playPromise.catch(error => {
-                    console.log("Autoplay blocked, retrying immediately via backup routine...");
-                    // Workaround: briefly mute, reset the timeline, and trigger play again
-                    video.muted = true;
-                    video.currentTime = 0;
-                    setTimeout(() => { video.play(); }, 100);
+                    console.log("Mac browser layer restricted execution. Initializing backup engine...");
+                    
+                    // Step 3: Mac WebKit Fail-safe Loop. 
+                    // If blocked, this forces a silent event bridge until playback starts.
+                    const forceLoop = setInterval(() => {
+                        video.play().then(() => {
+                            clearInterval(forceLoop);
+                            console.log("Autoplay successfully unlocked!");
+                        }).catch(() => {
+                            // If Mac completely locks the asset, tap the DOM system context directly
+                            video.dispatchEvent(new Event('click')); 
+                        });
+                    }, 50); // Fires every 50ms until the video breaks out of freeze state
                 });
             }
         }
 
-        // 2. OFFLINE ENGINE (Caches video data directly to Mac local storage)
-        async function initOfflineCache() {
-            try {
-                // Open standard browser local storage system
-                const cache = await caches.open('live-wallpaper-v1');
-                const cachedResponse = await cache.match(videoSrc);
-
-                if (cachedResponse) {
-                    // Internet is cut down: load directly from local hard drive cache
-                    const blob = await cachedResponse.blob();
-                    video.src = URL.createObjectURL(blob);
-                    forcePlay();
-                    console.log("Loaded safely from offline cache.");
-                } else {
-                    // First time load: stream over internet, then save a copy locally
-                    forcePlay();
-                    fetch(videoSrc).then(response => {
-                        if (response.ok) cache.put(videoSrc, response);
-                        console.log("Video cached successfully for offline use.");
-                    }).catch(e => console.log("Caching deferred. Connecting normally."));
-                }
-            } catch (err) {
-                // Fail-safe: standard load if cache storage is restricted
-                forcePlay();
-            }
+        // Execution Hooks: Triggers the code at the absolute earliest possible moment
+        if (document.readyState === 'loading') {
+            window.addEventListener('DOMContentLoaded', triggerAutoplay);
+        } else {
+            triggerAutoplay();
         }
 
-        // Run setup the moment the structure is ready
-        window.addEventListener('DOMContentLoaded', initOfflineCache);
+        // Secondary backup hook for system network wake delays
+        window.addEventListener('load', triggerAutoplay);
     </script>
-
-    </body>
+</body>
 </html>
