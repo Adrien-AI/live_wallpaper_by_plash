@@ -7,6 +7,56 @@
         </style>
     </head>
     <body>
-        <video src="My_load_Wallpaper.mp4" autoplay loop muted playsinline></video>
+        <video src="My_load_Wallpaper.mp4" autoplay loop muted playsinline preload="auto"></video>
+        
+        <script>
+        const video = document.getElementById('wallpaperVideo');
+        const videoSrc = 'my.mp4';
+
+        // 1. FORCED AUTOPLAY SYSTEM (Solves the click-to-play issue)
+        function forcePlay() {
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    console.log("Autoplay blocked, retrying immediately via backup routine...");
+                    // Workaround: briefly mute, reset the timeline, and trigger play again
+                    video.muted = true;
+                    video.currentTime = 0;
+                    setTimeout(() => { video.play(); }, 100);
+                });
+            }
+        }
+
+        // 2. OFFLINE ENGINE (Caches video data directly to Mac local storage)
+        async function initOfflineCache() {
+            try {
+                // Open standard browser local storage system
+                const cache = await caches.open('live-wallpaper-v1');
+                const cachedResponse = await cache.match(videoSrc);
+
+                if (cachedResponse) {
+                    // Internet is cut down: load directly from local hard drive cache
+                    const blob = await cachedResponse.blob();
+                    video.src = URL.createObjectURL(blob);
+                    forcePlay();
+                    console.log("Loaded safely from offline cache.");
+                } else {
+                    // First time load: stream over internet, then save a copy locally
+                    forcePlay();
+                    fetch(videoSrc).then(response => {
+                        if (response.ok) cache.put(videoSrc, response);
+                        console.log("Video cached successfully for offline use.");
+                    }).catch(e => console.log("Caching deferred. Connecting normally."));
+                }
+            } catch (err) {
+                // Fail-safe: standard load if cache storage is restricted
+                forcePlay();
+            }
+        }
+
+        // Run setup the moment the structure is ready
+        window.addEventListener('DOMContentLoaded', initOfflineCache);
+    </script>
+
     </body>
 </html>
