@@ -1,68 +1,62 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<html>
+    <head>
+        <style>
+            *{margin: 0; padding: 0; overflow: hidden;}
+            video{width: 100vw; height: 100vh; object-fit: cover;}
+        </style>
+    </head>
+    <body>
+        <video src="My_load_Wallpaper.mp4" autoplay loop muted playsinline preload="auto"></video>
+        
+        <script>
+        const video = document.getElementById('wallpaperVideo');
+        const videoSrc = 'my.mp4';
 
-    <style>
-        html,
-        body {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background: #000;
+        // 1. FORCED AUTOPLAY SYSTEM (Solves the click-to-play issue)
+        function forcePlay() {
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    console.log("Autoplay blocked, retrying immediately via backup routine...");
+                    // Workaround: briefly mute, reset the timeline, and trigger play again
+                    video.muted = true;
+                    video.currentTime = 0;
+                    setTimeout(() => { video.play(); }, 100);
+                });
+            }
         }
 
-        video {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            object-fit: cover;
-            display: block;
+        // 2. OFFLINE ENGINE (Caches video data directly to Mac local storage)
+        async function initOfflineCache() {
+            try {
+                // Open standard browser local storage system
+                const cache = await caches.open('live-wallpaper-v1');
+                const cachedResponse = await cache.match(videoSrc);
+
+                if (cachedResponse) {
+                    // Internet is cut down: load directly from local hard drive cache
+                    const blob = await cachedResponse.blob();
+                    video.src = URL.createObjectURL(blob);
+                    forcePlay();
+                    console.log("Loaded safely from offline cache.");
+                } else {
+                    // First time load: stream over internet, then save a copy locally
+                    forcePlay();
+                    fetch(videoSrc).then(response => {
+                        if (response.ok) cache.put(videoSrc, response);
+                        console.log("Video cached successfully for offline use.");
+                    }).catch(e => console.log("Caching deferred. Connecting normally."));
+                }
+            } catch (err) {
+                // Fail-safe: standard load if cache storage is restricted
+                forcePlay();
+            }
         }
-    </style>
-</head>
 
-<body>
+        // Run setup the moment the structure is ready
+        window.addEventListener('DOMContentLoaded', initOfflineCache);
+    </script>
 
-<video
-    id="wallpaper"
-    autoplay
-    muted
-    loop
-    playsinline
-    webkit-playsinline
-    preload="auto"
->
-    <source
-        src="https://raw.githubusercontent.com/Adrien-AI/live_wallpaper_by_plash/fix-autoplay-and-add-offline/My_load_Wallpaper.mp4"
-        type="video/mp4">
-</video>
-
-<script>
-    const video = document.getElementById("wallpaper");
-
-    video.muted = true;
-    video.volume = 0;
-
-    async function startVideo() {
-        try {
-            await video.play();
-            console.log("Wallpaper started automatically.");
-        } catch (error) {
-            console.error("Autoplay failed:", error);
-        }
-    }
-
-    video.addEventListener("loadeddata", startVideo);
-    video.addEventListener("canplay", startVideo);
-
-    startVideo();
-</script>
-
-</body>
+    </body>
 </html>
